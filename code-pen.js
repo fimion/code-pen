@@ -64,20 +64,31 @@
       },
     }
 
-    function startTheProcess(t) {
+    function startTheProcess(callback) {
       "loading" === document.readyState ? setTimeout((function () {
-        startTheProcess(t)
-      }), 9) : t()
+        startTheProcess(callback)
+      }), 9) : callback()
     }
 
     const s = new Set(["title", "description", "tags", "html_classes", "head", "stylesheets", "scripts"])
 
-    function u(e) {
-      for (var t = {}, r = e.attributes, n = 0, o = r.length; n < o; n++) {
-        var a = r[n].name
-        0 === a.indexOf("data-") && (t[a.replace("data-", "")] = r[n].value)
-      }
-      return t = f(t), c(t) ? (t.user = l(t, e), t) : null
+    /**
+     *
+     * @param {HTMLElement} e
+     * @returns {*}
+     */
+    function getConfigFromElement(e) {
+      let t = {}
+
+      Object.values(e.attributes).forEach((attr)=>{
+        const a = attr.name
+        if(a.startsWith("data-")){
+          t[a.replace("data-", "")] = attr.value
+        }
+      })
+      t = overrideConfigValues(t)
+
+      return  hasPrefillOrSlugHash(t) ? (t.user = l(t, e), t) : null
     }
 
     function l(e, t) {
@@ -89,12 +100,21 @@
       return "anon"
     }
 
-    function c(e) {
+    function hasPrefillOrSlugHash(e) {
       return "prefill" in e || e["slug-hash"]
     }
 
-    function f(e) {
-      return e.href && (e["slug-hash"] = e.href), e.type && (e["default-tab"] = e.type), e.safe && (e.animations = "true" === e.safe ? "run" : "stop-after-5"), e
+    function overrideConfigValues(e) {
+      if(e.href){
+        e["slug-hash"] = e.href
+      }
+      if(e.type){
+        e["default-tab"] = e.type
+      }
+      if(e.safe){
+        e.animations = "true" === e.safe ? "run" : "stop-after-5"
+      }
+      return e
     }
 
     function createUrl(e) {
@@ -123,10 +143,16 @@
       return e.height || 300
     }
 
-    function v(e, t) {
-      var r;
-      var n = document.createDocumentFragment()
-      n.append(createEmbedIframe(e)), "prefill" in e && (r = createPrefillForm(e, t), n.append(r)), S(t, n), r && r.submit()
+    function createCodepenElement(e, t) {
+      let r;
+      const n = document.createDocumentFragment();
+      n.append(createEmbedIframe(e));
+      if("prefill" in e){
+        r = createPrefillForm(e, t);
+        n.append(r)
+      }
+      addToDom(t, n);
+      r && r.submit()
     }
 
     /**
@@ -141,44 +167,38 @@
       return r
     }
 
-    function createPrefillForm(e, t) {
-      var r = createEl("form", {
+
+    /**
+     *
+     * @param {object} config
+     * @param {HTMLElement} t
+     * @returns {HTMLElement}
+     */
+    function createPrefillForm(config, t) {
+      const r = createEl("form", {
         class: "cp_embed_form",
         style: "display: none;",
         method: "post",
-        action: createUrl(e),
-        target: e.name,
+        action: createUrl(config),
+        target: config.name,
       })
 
-      function formatFormData(e) {
-        if (Object.hasOwn(e.dataset, "prefill")) {
-          const t = {}
-          let r = e.dataset.prefill
-          for (const a in r = JSON.parse(decodeURI(r) || "{}")){
-            if(s.has(a) ){
-              (t[a] = r[a])
-            }
-          }
-          try {
-            for (const content of e.querySelectorAll("[data-lang]")) {
-              var l = content.value, c = l.dataset.lang
-              l.dataset.optionsAutoprefixer && (t.css_prefix = "autoprefixer")
-              var f = CodePenMagicValues.syntaxToType(c)
-              t[f] = l.innerText, c !== f && (t[f + "_pre_processor"] = c)
-              var p = l.dataset.langVersion
-              p && (t[f + "_version"] = p)
-            }
-          } catch (e) {
-            u.e(e)
-          } finally {
-            u.f()
-          }
-          return JSON.stringify(t)
-        }
-      }(t)
+      /**
+       * Test to see if an html element has a `data-prefill` attribute
+       * @param {HTMLElement} e
+       * @returns {boolean}
+       */
+      function hasPrefill(e){
+        return Object.hasOwn(e.dataset, "prefill")
+      }
 
-      for (var a in e.data = function (e) {
-        if (Object.hasOwn(e.dataset, "prefill")) {
+      /**
+       *
+       * @param {HTMLElement} e
+       * @returns {string}
+       */
+      function formatFormData(e) {
+        if (hasPrefill(e)) {
           const t = {}
           let r = e.dataset.prefill
           for (const a in r = JSON.parse(decodeURI(r) || "{}")){
@@ -196,66 +216,90 @@
               p && (t[f + "_version"] = p)
             }
           } catch (e) {
-            u.e(e)
+            getConfigFromElement.e(e)
           } finally {
-            u.f()
+            getConfigFromElement.f()
           }
           return JSON.stringify(t)
         }
-      }(t), e){
-        if("prefill" !== a) {
-          r.append(createEl("input", {type: "hidden", name: a, value: e[a]}))
+      }
+
+      config.data=formatFormData(t)
+
+      for (let key in config.data){
+        if("prefill" !== key) {
+          r.append(createEl("input", {type: "hidden", name: key, value: config[key]}))
         }
       }
       return r
     }
 
-    function createEmbedIframe(e) {
-      var t;
-      var r = createUrl(e)
-      t = e["pen-title"] || "CodePen Embed"
-      var n = {
+    /**
+     *
+     * @param {object} config
+     * @returns {HTMLElement}
+     */
+    function createEmbedIframe(config) {
+      const penTitle= config["pen-title"] || "CodePen Embed";
+      const penUrl = createUrl(config)
+      const iframeAttrs = {
         allowfullscreen: "true",
         allowpaymentrequest: "true",
         allowTransparency: "true",
-        class: "cp_embed_iframe " + (e.class || ""),
+        class: "cp_embed_iframe " + (config.class || ""),
         frameborder: "0",
-        height: getHeight(e),
+        height: getHeight(config),
         width: "100%",
-        name: e.name || "CodePen Embed",
+        name: config.name || "CodePen Embed",
         scrolling: "no",
-        src: r,
+        src: penUrl,
         style: "width: 100%; overflow:hidden; display:block;",
-        title: t,
+        title: penTitle,
       }
-      if("prefill" in e == !1){
-        n.loading = "lazy"
+      if("prefill" in config == !1){
+        iframeAttrs.loading = "lazy"
       }
-      if(e["slug-hash"]){
-        (n.id = "cp_embed_" + e["slug-hash"].replace("/", "_"))
+      if(config["slug-hash"]){
+        (iframeAttrs.id = "cp_embed_" + config["slug-hash"].replace("/", "_"))
       }
-      return createEl("iframe", n)
+      return createEl("iframe", iframeAttrs)
     }
 
-    function S(e, t) {
+    /**
+     *
+     * @param {HTMLElement} e
+     * @param {HTMLElement | DocumentFragment} t
+     * @returns {HTMLElement}
+     */
+    function addToDom(e, t) {
       if (e.parentNode) {
-        var r = document.createElement("div")
-        return r.className = "cp_embed_wrapper", r.append(t), e.parentNode.replaceChild(r, e), r
+        const r = document.createElement("div");
+        r.className = "cp_embed_wrapper";
+        r.append(t);
+        e.parentNode.replaceChild(r, e);
+        return  r
       }
-      return e.append(t), e
+      e.append(t)
+      return e
     }
 
     let T = 1
 
-    function x(e) {
-      e = "string" == typeof e ? e : ".codepen"
-      for (var t = document.querySelectorAll(e), r = 0, n = t.length; r < n; r++) {
-        var o = t[r], a = u(o)
-        a && (a.name = "cp_embed_" + T++, v(a, o))
-      }
+    function cpEmbed(e) {
+      let selector = "string" == typeof e ? e : ".codepen"
+      document.querySelectorAll(selector).forEach((el)=>{
+        const a = getConfigFromElement(el);
+        if(a){
+          a.name = "cp_embed_" + T++;
+          createCodepenElement(a, el);
+        }
+      })
+
       "function" == typeof __CodePenIFrameAddedToPage && __CodePenIFrameAddedToPage()
     }
 
-    window.__cp_domReady = startTheProcess, window.__CPEmbed = x, startTheProcess(x)
+    window.__cp_domReady = startTheProcess;
+    window.__CPEmbed = cpEmbed;
+    startTheProcess(cpEmbed);
   },
 })
