@@ -1,66 +1,15 @@
-!function (e) {
-  var t = {}
-
-  function require(n) {
-    if (t[n]) return t[n].exports
-    var o = t[n] = {i: n, l: !1, exports: {}}
-    return e[n].call(o.exports, o, o.exports, require), o.l = !0, o.exports
-  }
-
-  require.m = e
-  require.c = t
-  require.d = function (e, t, n) {
-    require.o(e, t) || Object.defineProperty(e, t, {enumerable: !0, get: n})
-  }
-  require.defineESM = function (e) {
-    "undefined" != typeof Symbol && Symbol.toStringTag && Object.defineProperty(e, Symbol.toStringTag, {value: "Module"}), Object.defineProperty(e, "__esModule", {value: !0})
-  }
-  require.t = function (e, t) {
-    if (1 & t && (e = require(e)), 8 & t) return e
-    if (4 & t && "object" == typeof e && e && e.__esModule) return e
-    var n = Object.create(null)
-    if (require.defineESM(n), Object.defineProperty(n, "default", {
-      enumerable: !0,
-      value: e,
-    }), 2 & t && "string" != typeof e) for (var o in e) require.d(n, o, function (t) {
-      return e[t]
-    }.bind(null, o))
-    return n
-  }
-  require.n = function (e) {
-    var t = e && e.__esModule ? function () {
-      return e.default
-    } : function () {
-      return e
-    }
-    return require.d(t, "a", t), t
-  }
-  require.o = function (e, t) {
-    return Object.prototype.hasOwnProperty.call(e, t)
-  }
-  require.p = "https://cpwebassets.codepen.io/assets/packs/"
-  require(require.s = 828)
-}({
-  828: function (e, t, require) {
+(function () {
     "use strict"
-    require.defineESM(t)
     const CodePenMagicValues = {
       _HTML_TYPES: ["html", "xml", "haml", "markdown", "slim", "pug", "application/x-slim"],
       _CSS_TYPES: ["css", "less", "scss", "sass", "stylus", "postcss", "text/css", "text/x-sass", "text/x-scss", "text/x-less", "text/x-styl"],
       _JS_TYPES: ["js", "javascript", "coffeescript", "livescript", "typescript", "babel", "text/javascript", "text/x-coffeescript", "text/x-livescript", "text/typescript"],
       _CUSTOM_EDITOR_TYPES: {vue: "js", flutter: "js"},
-      cmModeToType(e) {
-        var t = this._getSafeInputMode(e)
-        return this._getType(t)
-      },
-      _getSafeInputMode(e) {
-        return ("string" == typeof e ? e : e.name).toLowerCase()
-      },
       syntaxToType(e) {
-        return this._getType(e)
+        return CodePenMagicValues._getType(e)
       },
       _getType(e) {
-        return this._HTML_TYPES.includes(e) ? "html" : this._CSS_TYPES.includes(e) ? "css" : this._JS_TYPES.includes(e) ? "js" : this._CUSTOM_EDITOR_TYPES[e] ? this._CUSTOM_EDITOR_TYPES[e] : "unknown"
+        return CodePenMagicValues._HTML_TYPES.includes(e) ? "html" : CodePenMagicValues._CSS_TYPES.includes(e) ? "css" : CodePenMagicValues._JS_TYPES.includes(e) ? "js" : CodePenMagicValues._CUSTOM_EDITOR_TYPES[e] ? CodePenMagicValues._CUSTOM_EDITOR_TYPES[e] : "unknown"
       },
     }
 
@@ -70,7 +19,7 @@
       }), 9) : callback()
     }
 
-    const s = new Set(["title", "description", "tags", "html_classes", "head", "stylesheets", "scripts"])
+    const ALLOWED_PROPERTIES = new Set(["title", "description", "tags", "html_classes", "head", "stylesheets", "scripts"])
 
     /**
      *
@@ -202,7 +151,7 @@
           const t = {}
           let r = e.dataset.prefill
           for (const a in r = JSON.parse(decodeURI(r) || "{}")){
-            if(s.has(a) ){
+            if(ALLOWED_PROPERTIES.has(a) ){
               (t[a] = r[a])
             }
           }
@@ -285,21 +234,29 @@
 
     let T = 1
 
+    function cpEmbedElement(el){
+      const a = getConfigFromElement(el);
+      if(a){
+        a.name = "cp_embed_" + T++;
+        createCodepenElement(a, el);
+      }
+    }
+
     function cpEmbed(e) {
       let selector = "string" == typeof e ? e : ".codepen"
-      document.querySelectorAll(selector).forEach((el)=>{
-        const a = getConfigFromElement(el);
-        if(a){
-          a.name = "cp_embed_" + T++;
-          createCodepenElement(a, el);
-        }
-      })
+      document.querySelectorAll(selector).forEach(cpEmbedElement)
 
       "function" == typeof __CodePenIFrameAddedToPage && __CodePenIFrameAddedToPage()
     }
 
+    class CodePenElement extends HTMLElement {
+      connectedCallback(){
+        cpEmbedElement(this);
+      }
+    }
+    customElements.define('code-pen', CodePenElement);
+
     window.__cp_domReady = startTheProcess;
     window.__CPEmbed = cpEmbed;
     startTheProcess(cpEmbed);
-  },
-})
+})()
