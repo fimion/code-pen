@@ -1,5 +1,48 @@
 (function () {
 
+  /**
+   * @typedef {object} CodePenEmbedConfig
+   * @property {string} [href] - the url of the pen you want to embed
+   * @property {string} [slug-hash] - the hash or the url of the codepen you want to embed
+   * @property {string} [type] - The default type to display
+   * @property {string} [default-tab] - the default type to display
+   * @property {"true"|"false"} [safe] - whether to run things in safe mode
+   * @property {"run"|"stop-after-5"} [animations] - whether to run animations fully or stop after 5 seconds
+   * @property {string} [prefill] - if the codepen is a prefill embed
+   * @property {string} [name] - the name for the codepen embed
+   * @property {string} [class] - the classes for the embed iframe
+   * @property {string} [host] - The host name of the codepen
+   * @property {"true"|"false"} [preview] - whether to preview or not
+   * @property {string} [user] - user for the pen
+   * @property {string} [token] - no idea
+   * @property {string} [height] - embed height
+   */
+
+  /**
+   * @typedef {object} CodePenPrefillConfig
+   * @property {string} [title]
+   * @property {string} [description]
+   * @property {string} [tags]
+   * @property {string} [html_classes]
+   * @property {string} [head]
+   * @property {string[]} [stylesheets]
+   * @property {string[]} [scripts]
+   * @property {string} [css_prefix]
+   * @property {string} [html]
+   * @property {string} [html_pre_processor]
+   * @property {string} [html_version]
+   * @property {string} [js]
+   * @property {string} [js_pre_processor]
+   * @property {string} [js_version]
+   * @property {string} [css]
+   * @property {string} [css_pre_processor]
+   * @property {string} [css_version]
+   */
+
+  /**
+   * Magic lookup table for language strings
+   * @type {{css: string[], js: string[], html: string[]}}
+   */
   const codepenMagicLookup = {
     "html": ["html", "xml", "haml", "markdown", "slim", "pug", "application/x-slim"],
     "css": ["css", "less", "scss", "sass", "stylus", "postcss", "text/css", "text/x-sass", "text/x-scss", "text/x-less", "text/x-styl"],
@@ -29,26 +72,32 @@
 
   const ALLOWED_PROPERTIES = new Set(["title", "description", "tags", "html_classes", "head", "stylesheets", "scripts"])
 
+
+
+
   /**
    *
-   * @param {HTMLElement} e
-   * @returns {*}
+   * @param {HTMLElement} el
+   * @returns {CodePenEmbedConfig}
    */
-  function getConfigFromElement(e) {
-    let t = {}
+  function getConfigFromElement(el) {
+    /**
+     * @type {CodePenEmbedConfig}
+     */
+    let config = {}
 
-    Object.values(e.attributes).forEach((attr) => {
+    Object.values(el.attributes).forEach((attr) => {
       const a = attr.name
       if (a.startsWith("data-")) {
-        t[a.replace("data-", "")] = attr.value
+        config[a.replace("data-", "")] = attr.value
       }
     })
-    t = overrideConfigValues(t)
+    config = overrideConfigValues(config)
 
-    return hasPrefillOrSlugHash(t) ? (t.user = l(t, e), t) : null
+    return hasPrefillOrSlugHash(config) ? (config.user = getUserName(config, el), config) : null
   }
 
-  function l(e, t) {
+  function getUserName(e, t) {
     if ("string" == typeof e.user) return e.user
     for (var r = 0, n = t.children.length; r < n; r++) {
       var o = (t.children[r].href || "").match(/codepen\.(io|dev)\/(\w+)\/pen\//i)
@@ -57,10 +106,20 @@
     return "anon"
   }
 
-  function hasPrefillOrSlugHash(e) {
-    return "prefill" in e || e["slug-hash"]
+  /**
+   *
+   * @param {CodePenEmbedConfig} config
+   * @returns {boolean}
+   */
+  function hasPrefillOrSlugHash(config) {
+    return "prefill" in config || !!config["slug-hash"]
   }
 
+  /**
+   * override certain attributes with others if available
+   * @param {CodePenEmbedConfig} e
+   * @returns {CodePenEmbedConfig}
+   */
   function overrideConfigValues(e) {
     if (e.href) {
       e["slug-hash"] = e.href
@@ -74,42 +133,83 @@
     return e
   }
 
-  function createUrl(e) {
-    var host = getHost(e)
-    var r = e.preview && "true" === e.preview ? "embed/preview" : "embed"
-    if ("prefill" in e) return [host, r, "prefill"].join("/")
-    var n = h(e), o = e.user || "anon", a = e["slug-hash"]
-    return void 0 !== e.token && (a += "/" + e.token), [host, o, r, a + "?" + n].join("/").replace(/\/\//g, "//")
+  /**
+   *
+   * @param {CodePenEmbedConfig} config
+   * @returns {string}
+   */
+  function createUrl(config) {
+    const host = getHost(config)
+    const display = config.preview && "true" === config.preview ? "embed/preview" : "embed"
+    if ("prefill" in config){
+      return [host, display, "prefill"].join("/")
+    }
+    const queryParams = makeQueryParams(config)
+    const userName = config.user || "anon"
+    let slugHash = config["slug-hash"]
+    if(typeof config.token == "string"){
+      slugHash += "/" + config.token
+    }
+    return [host, userName, display, slugHash + "?" + queryParams].join("/").replace(/\/\//g, "//")
   }
 
+  /**
+   *
+   * @param {CodePenEmbedConfig} e
+   * @returns {string|string}
+   */
   function getHost(e) {
-    return e.host ? m(e.host) : "https://codepen.io"
+    return typeof e.host === "string" ? setProtocol(e.host) : "https://codepen.io"
   }
 
-  function m(e) {
+  /**
+   *
+   * @param {string} e
+   * @returns {string}
+   */
+  function setProtocol(e) {
     return e.match(/^\/\//) || !e.match(/https?:/) ? document.location.protocol + "//" + e : e
   }
 
-  function h(e) {
-    var t = ""
-    for (var r in e) "prefill" !== r && ("" !== t && (t += "&"), t += r + "=" + encodeURIComponent(e[r]))
-    return t
+  /**
+   *
+   * @param {CodePenEmbedConfig} config
+   * @returns {string}
+   */
+  function makeQueryParams(config) {
+    const searchParams = new URLSearchParams();
+    for (const key in config) {
+      if( "prefill" !== key){
+        searchParams.append(key, config[key]);
+      }
+    }
+    return searchParams.toString()
   }
 
+  /**
+   *
+   * @param {CodePenEmbedConfig} e
+   * @returns {string|number}
+   */
   function getHeight(e) {
     return e.height || 300
   }
 
-  function createCodepenElement(e, t) {
-    let r
-    const n = document.createDocumentFragment()
-    n.append(createEmbedIframe(e))
-    if ("prefill" in e) {
-      r = createPrefillForm(e, t)
-      n.append(r)
+  /**
+   *
+   * @param {CodePenEmbedConfig} config
+   * @param {HTMLElement} el
+   */
+  function createCodepenElement(config, el) {
+    let prefillForm
+    const fragment = document.createDocumentFragment()
+    fragment.append(createEmbedIframe(config))
+    if ("prefill" in config) {
+      prefillForm = createPrefillForm(config, el)
+      fragment.append(prefillForm)
     }
-    addToDom(t, n)
-    r && r.submit()
+    addToDom(el, fragment)
+    prefillForm && prefillForm.submit()
   }
 
   /**
@@ -128,10 +228,10 @@
   /**
    *
    * @param {object} config
-   * @param {HTMLElement} t
+   * @param {HTMLElement} element
    * @returns {HTMLElement}
    */
-  function createPrefillForm(config, t) {
+  function createPrefillForm(config, element) {
     const r = createEl("form", {
       class: "cp_embed_form",
       style: "display: none;",
@@ -145,43 +245,43 @@
      * @param {HTMLElement} e
      * @returns {boolean}
      */
-    function hasPrefill(e) {
+    function elementIsPrefill(e) {
       return Object.hasOwn(e.dataset, "prefill")
     }
 
     /**
      *
-     * @param {HTMLElement} e
+     * @param {HTMLElement} el
      * @returns {string}
      */
-    function formatFormData(e) {
-      if (hasPrefill(e)) {
-        const t = {}
-        let r = e.dataset.prefill
-        for (const a in r = JSON.parse(decodeURI(r) || "{}")) {
+    function formatFormData(el) {
+      if (elementIsPrefill(el)) {
+        /**  @type {CodePenPrefillConfig} */
+        const prefillConfig = {}
+        let r = JSON.parse(decodeURI(el.dataset.prefill) || "{}");
+        for (const a in r)  {
           if (ALLOWED_PROPERTIES.has(a)) {
-            (t[a] = r[a])
+            (prefillConfig[a] = r[a])
           }
         }
-        try {
-          for (const content of e.querySelectorAll("[data-lang]")) {
-            var l = content.value, c = l.dataset.lang
-            l.dataset.optionsAutoprefixer && (t.css_prefix = "autoprefixer")
-            var f = penLangs.syntaxToType(c)
-            t[f] = l.innerText, c !== f && (t[f + "_pre_processor"] = c)
-            var p = l.dataset.langVersion
-            p && (t[f + "_version"] = p)
+        for (const content of el.querySelectorAll("[data-lang]")) {
+          const langName = content.dataset.lang
+          content.dataset.optionsAutoprefixer && (prefillConfig.css_prefix = "autoprefixer")
+          const penTypeLang = penLangs.syntaxToType(langName)
+          prefillConfig[penTypeLang] = content.innerText
+          if(langName !== penTypeLang){
+            prefillConfig[penTypeLang + "_pre_processor"] = langName
           }
-        } catch (e) {
-          getConfigFromElement.e(e)
-        } finally {
-          getConfigFromElement.f()
+          const p = content.dataset.langVersion
+          if(p){
+            prefillConfig[penTypeLang + "_version"] = p
+          }
         }
-        return JSON.stringify(t)
+        return JSON.stringify(prefillConfig)
       }
     }
 
-    config.data = formatFormData(t)
+    config.data = formatFormData(element)
 
     for (let key in config.data) {
       if ("prefill" !== key) {
@@ -193,7 +293,7 @@
 
   /**
    *
-   * @param {object} config
+   * @param {CodePenEmbedConfig} config
    * @returns {HTMLElement}
    */
   function createEmbedIframe(config) {
@@ -229,30 +329,46 @@
    * @returns {HTMLElement}
    */
   function addToDom(e, t) {
-    if (e.parentNode) {
-      const r = document.createElement("div")
-      r.className = "cp_embed_wrapper"
-      r.append(t)
-      e.parentNode.replaceChild(r, e)
-      return r
+    if (e.shadowRoot) {
+      e.shadowRoot.append(t)
+    } else {
+      e.append(t)
     }
-    e.append(t)
+
     return e
   }
 
   let T = 1
 
+  /**
+   *
+   * @param {HTMLElement} el
+   */
   function cpEmbedElement(el) {
-    const a = getConfigFromElement(el)
-    if (a) {
-      a.name = "cp_embed_" + T++
-      createCodepenElement(a, el)
+    const config = getConfigFromElement(el)
+    if (config) {
+      config.name = "cp_embed_" + T++
+      createCodepenElement(config, el)
     }
   }
 
+  /**
+   * @callback __CodePenIFrameAddedToPage
+   * @param {CodePenElement} element
+   */
+
+
   class CodePenElement extends HTMLElement {
+
+    constructor() {
+      super()
+      this.attachShadow({mode: "open"})
+    }
     connectedCallback() {
       cpEmbedElement(this)
+      if(window?.__CodePenIFrameAddedToPage && "function" == typeof window?.__CodePenIFrameAddedToPage){
+        window.__CodePenIFrameAddedToPage(this)
+      }
     }
   }
 
