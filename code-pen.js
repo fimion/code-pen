@@ -64,12 +64,6 @@
     },
   }
 
-  function startTheProcess(callback) {
-    "loading" === document.readyState ? setTimeout((function () {
-      startTheProcess(callback)
-    }), 9) : callback()
-  }
-
   const ALLOWED_PROPERTIES = new Set(["title", "description", "tags", "html_classes", "head", "stylesheets", "scripts"])
 
 
@@ -310,7 +304,7 @@
       name: config.name || "CodePen Embed",
       scrolling: "no",
       src: penUrl,
-      style: "width: 100%; overflow:hidden; display:block;",
+      style: "max-height: 100%; width: 100%; overflow:hidden; display:block;",
       title: penTitle,
     }
     if ("prefill" in config == !1) {
